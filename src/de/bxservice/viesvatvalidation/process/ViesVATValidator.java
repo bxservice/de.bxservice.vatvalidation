@@ -1,0 +1,142 @@
+/**********************************************************************
+ * Copyright (C) Contributors                                          *
+ *                                                                     *
+ * This program is free software; you can redistribute it and/or       *
+ * modify it under the terms of the GNU General Public License         *
+ * as published by the Free Software Foundation; either version 2      *
+ * of the License, or (at your option) any later version.              *
+ *                                                                     *
+ * This program is distributed in the hope that it will be useful,     *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of      *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the        *
+ * GNU General Public License for more details.                        *
+ *                                                                     *
+ * You should have received a copy of the GNU General Public License   *
+ * along with this program; if not, write to the Free Software         *
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,          *
+ * MA 02110-1301, USA.                                                 *
+ *                                                                     *
+ * Contributors:                                                       *
+ * - Diego Ruiz - Bx Service GmbH                                      *
+ **********************************************************************/
+package de.bxservice.viesvatvalidation.process;
+
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.Response.Status;
+
+import org.adempiere.exceptions.AdempiereException;
+import org.compiere.model.MBPartner;
+import org.compiere.model.MProcessPara;
+import org.compiere.process.ProcessInfoParameter;
+import org.compiere.process.SvrProcess;
+import org.compiere.util.Util;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+
+public class ViesVATValidator extends SvrProcess {
+
+	private final static String CHECK_VATNUMBER_URL = "https://ec.europa.eu/taxation_customs/vies/rest-api//check-vat-number"; 
+
+	private MBPartner bPartner;
+	private boolean isUpdateName = false;
+
+	@Override
+	protected void prepare() {
+		for (ProcessInfoParameter para : getParameter()) {
+			String name = para.getParameterName();
+			switch (name) {
+			case "IsUpdateName":
+				isUpdateName = para.getParameterAsBoolean();
+			default:
+				MProcessPara.validateUnknownParameter(getProcessInfo().getAD_Process_ID(), para);
+			}
+		}
+		
+		bPartner = new MBPartner(getCtx(), getRecord_ID(), get_TrxName());
+	}
+
+	@Override
+	protected String doIt() throws Exception {
+		if (!isValidTaxID())
+			return "@Error@ @BXS_InvalidTaxID@";
+
+		boolean isValidVAT = validateVATNumber();
+		return isValidVAT ? "@BXS_ValidVATNumber@" : "@BXS_ErrorVATNumber@";
+	}
+
+	/**
+	 * A full VAT identifier starts with an (2 letters) country code 
+	 * and then has between 2 and 13 characters.
+	 * @return true if it is a valid string
+	 */
+	private boolean isValidTaxID() {
+		return !Util.isEmpty(bPartner.getTaxID()) && bPartner.getTaxID().length() > 4;  
+	}
+
+	private boolean validateVATNumber() {
+		Response response = getRequestResponse();
+
+		int responseStatus = response.getStatus();
+		String responseBody = response.readEntity(String.class);
+		if (responseStatus != Status.OK.getStatusCode()) {
+			String msg = "@Error@ Business Partner validating " + bPartner.getValue() + " " + responseStatus + " / " + responseBody;
+			throw new AdempiereException(msg);
+		}
+
+		if (!Util.isEmpty(responseBody)) {
+			Gson gson = new GsonBuilder().create();
+			JsonObject jsonObject = gson.fromJson(responseBody, JsonObject.class);
+
+			boolean isValidVATNumber = jsonObject.get("valid").getAsBoolean();
+			bPartner.set_ValueOfColumn("BXS_IsValidVATNumber", isValidVATNumber);
+
+			if (isValidVATNumber && isUpdateName) {
+				String name = jsonObject.get("name").getAsString();
+				bPartner.setName(name);
+			}
+			bPartner.saveEx();
+
+			return isValidVATNumber;
+		}
+		
+		return false;
+	}
+
+	private Response getRequestResponse() {
+		Client client = ClientBuilder.newClient();
+		Entity<String> payload = Entity.json(getRequestBody().toString());
+
+		return client.target(CHECK_VATNUMBER_URL)
+				.request(MediaType.APPLICATION_JSON_TYPE)
+				.header("Accept", "application/json")
+				.header("Content-Type", "application/json")
+				.post(payload);
+	}
+
+	private JsonObject getRequestBody() {
+		JsonObject json = new JsonObject();
+		json.addProperty("countryCode", getCountryCode(bPartner.getTaxID()));
+		json.addProperty("vatNumber", getVATNumber(bPartner.getTaxID()));
+		return json;
+	}
+
+	/**
+	 * The first two characters of the tax ID are the
+	 * Country code
+	 * @return Country code
+	 */
+	private String getCountryCode(String taxID) {
+		return taxID.substring(0, 2);
+	}
+
+	private String getVATNumber(String taxID) {
+		return taxID.substring(2, taxID.length());
+	}
+
+}
