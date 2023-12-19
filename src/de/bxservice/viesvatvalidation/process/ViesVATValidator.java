@@ -39,6 +39,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 
+import de.bxservice.viesvatvalidation.model.BusinessPartnerUtils;
+
 public class ViesVATValidator extends SvrProcess {
 
 	private final static String CHECK_VATNUMBER_URL = "https://ec.europa.eu/taxation_customs/vies/rest-api//check-vat-number"; 
@@ -67,7 +69,7 @@ public class ViesVATValidator extends SvrProcess {
 			return "@Error@ @BXS_InvalidTaxID@";
 
 		boolean isValidVAT = validateVATNumber();
-		return isValidVAT ? "@BXS_ValidVATNumber@" : "@BXS_ErrorVATNumber@";
+		return isValidVAT ? "@BXS_ValidVATNumber@" : "@Error@ @BXS_ErrorVATNumber@";
 	}
 
 	/**
@@ -84,28 +86,22 @@ public class ViesVATValidator extends SvrProcess {
 
 		int responseStatus = response.getStatus();
 		String responseBody = response.readEntity(String.class);
+		JsonObject jsonResponse = getResponseBody(responseBody);
+		
 		if (responseStatus != Status.OK.getStatusCode()) {
-			String msg = "@Error@ Business Partner validating " + bPartner.getValue() + " " + responseStatus + " / " + responseBody;
+			String msg = "@Error@ Business Partner validating " + bPartner.getValue() + " " + responseStatus + " / " + getErrorMessage(jsonResponse);
 			throw new AdempiereException(msg);
 		}
+		boolean isValidVATNumber = jsonResponse.get("valid").getAsBoolean();
+		BusinessPartnerUtils.setIsValidVATNumber(bPartner, isValidVATNumber);
 
-		if (!Util.isEmpty(responseBody)) {
-			Gson gson = new GsonBuilder().create();
-			JsonObject jsonObject = gson.fromJson(responseBody, JsonObject.class);
-
-			boolean isValidVATNumber = jsonObject.get("valid").getAsBoolean();
-			bPartner.set_ValueOfColumn("BXS_IsValidVATNumber", isValidVATNumber);
-
-			if (isValidVATNumber && isUpdateName) {
-				String name = jsonObject.get("name").getAsString();
-				bPartner.setName(name);
-			}
-			bPartner.saveEx();
-
-			return isValidVATNumber;
+		if (isValidVATNumber) {
+			validateResponseName(jsonResponse);
 		}
-		
-		return false;
+
+		bPartner.saveEx();
+
+		return isValidVATNumber;		
 	}
 
 	private Response getRequestResponse() {
@@ -136,7 +132,45 @@ public class ViesVATValidator extends SvrProcess {
 	}
 
 	private String getVATNumber(String taxID) {
-		return taxID.substring(2, taxID.length());
+		return taxID.substring(2);
 	}
 
+	private JsonObject getResponseBody(String responseBody) {
+		if (!Util.isEmpty(responseBody)) {
+			Gson gson = new GsonBuilder().create();
+			return gson.fromJson(responseBody, JsonObject.class);
+		} else {
+			throw new AdempiereException("Unexpected empty response body");
+		}
+	}
+	
+	private void validateResponseName(JsonObject jsonResponse) {
+		String name = jsonResponse.get("name").getAsString();
+
+		if (isUpdateName)
+			bPartner.setName(name);
+		else
+			addLog("@Name@ = " + name);
+	}
+	
+	private String getErrorMessage(JsonObject jsonResponse) {
+		
+		StringBuilder errorMessage = new StringBuilder("");
+		if (jsonResponse.get("errorWrappers") != null && jsonResponse.get("errorWrappers").getAsJsonArray() != null) {
+			jsonResponse.get("errorWrappers").getAsJsonArray().forEach(e -> {
+				if (e.isJsonObject()) {
+					String message = "";
+					if (((JsonObject) e).get("message") != null)
+						message = ((JsonObject) e).get("message").getAsString();
+					else if (((JsonObject) e).get("error") != null)
+						message = ((JsonObject) e).get("error").getAsString();
+					
+					errorMessage.append(message);
+				}
+			});
+		}
+		
+		
+		return errorMessage.toString(); 
+	}
 }
