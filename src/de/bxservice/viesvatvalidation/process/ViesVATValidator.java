@@ -94,12 +94,10 @@ public class ViesVATValidator extends SvrProcess {
 		}
 		boolean isValidVATNumber = jsonResponse.get("valid").getAsBoolean();
 		BusinessPartnerUtils.setIsValidVATNumber(bPartner, isValidVATNumber);
-
 		if (isValidVATNumber) {
 			validateResponseName(jsonResponse);
 		}
-
-		bPartner.saveEx();
+		bPartner.saveEx(null);
 
 		return isValidVATNumber;		
 	}
