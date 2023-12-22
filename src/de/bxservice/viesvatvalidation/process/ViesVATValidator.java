@@ -37,6 +37,7 @@ import org.compiere.util.Util;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 import de.bxservice.viesvatvalidation.model.BusinessPartnerUtils;
@@ -92,7 +93,8 @@ public class ViesVATValidator extends SvrProcess {
 			String msg = "@Error@ Business Partner validating " + bPartner.getValue() + " " + responseStatus + " / " + getErrorMessage(jsonResponse);
 			throw new AdempiereException(msg);
 		}
-		boolean isValidVATNumber = jsonResponse.get("valid").getAsBoolean();
+		
+		boolean isValidVATNumber = getValidFromResponse(jsonResponse);
 		BusinessPartnerUtils.setIsValidVATNumber(bPartner, isValidVATNumber);
 		if (isValidVATNumber) {
 			validateResponseName(jsonResponse);
@@ -142,13 +144,28 @@ public class ViesVATValidator extends SvrProcess {
 		}
 	}
 	
+	private boolean getValidFromResponse(JsonObject jsonResponse) {
+		return getElement(jsonResponse, "valid").getAsBoolean();
+	}
+	
+	private JsonElement getElement(JsonObject jsonResponse, String elementName) {
+		if (jsonResponse.get(elementName) == null)
+			throw new AdempiereException("Unexpected response. Error: " + getErrorMessage(jsonResponse));
+		
+		return jsonResponse.get(elementName);
+	}
+	
 	private void validateResponseName(JsonObject jsonResponse) {
-		String name = jsonResponse.get("name").getAsString();
+		String name = getNameFromResponse(jsonResponse);
 
 		if (isUpdateName)
 			bPartner.setName(name);
 		else
 			addLog("@Name@ = " + name);
+	}
+	
+	private String getNameFromResponse(JsonObject jsonResponse) {
+		return getElement(jsonResponse, "name").getAsString();
 	}
 	
 	private String getErrorMessage(JsonObject jsonResponse) {
