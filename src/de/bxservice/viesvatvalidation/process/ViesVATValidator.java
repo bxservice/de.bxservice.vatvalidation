@@ -30,10 +30,14 @@ import javax.ws.rs.core.Response.Status;
 
 import org.adempiere.exceptions.AdempiereException;
 import org.compiere.model.MBPartner;
+import org.compiere.model.MBPartnerLocation;
+import org.compiere.model.MCity;
 import org.compiere.model.MClient;
+import org.compiere.model.MLocation;
 import org.compiere.model.MProcessPara;
 import org.compiere.process.ProcessInfoParameter;
 import org.compiere.process.SvrProcess;
+import org.compiere.util.DB;
 import org.compiere.util.Env;
 import org.compiere.util.Language;
 import org.compiere.util.Util;
@@ -51,6 +55,7 @@ public class ViesVATValidator extends SvrProcess {
 
 	private MBPartner bPartner;
 	private boolean isUpdateName = false;
+	private boolean isUpdateAddress = false;
 
 	@Override
 	protected void prepare() {
@@ -59,6 +64,8 @@ public class ViesVATValidator extends SvrProcess {
 			switch (name) {
 			case "IsUpdateName":
 				isUpdateName = para.getParameterAsBoolean();
+			case "IsUpdateAddress":
+				isUpdateAddress = para.getParameterAsBoolean();
 			default:
 				MProcessPara.validateUnknownParameter(getProcessInfo().getAD_Process_ID(), para);
 			}
@@ -101,6 +108,7 @@ public class ViesVATValidator extends SvrProcess {
 		BusinessPartnerUtils.setIsValidVATNumber(bPartner, isValidVATNumber);
 		if (isValidVATNumber) {
 			validateResponseName(jsonResponse);
+			validateResponseAddress(jsonResponse);
 		}
 		bPartner.saveEx(null);
 
@@ -175,8 +183,51 @@ public class ViesVATValidator extends SvrProcess {
 			addLog("@Name@ = " + name);
 	}
 	
+	private void validateResponseAddress(JsonObject jsonResponse) {
+		if(!isUpdateAddress) {
+			return;
+		}
+		
+		String address = getAddressFromResponse(jsonResponse);
+		
+		String [] parts = address.split("\n");
+		
+		if(parts.length < 2) {
+			return;
+		}
+	
+		String part2 = parts[1].trim();
+		
+		String address1 = address.split("\n")[0].trim();
+		String postal = part2.substring(0,5);
+		String locode = part2.substring(part2.length() - 2);
+		String city = part2.substring(6, part2.length() - 3);
+		int c_City_ID = getC_City_ID(city);
+		
+		MLocation location = new MLocation(Env.getCtx(), 0, get_TrxName());
+		location.setAddress1(address1);
+		location.setPostal(postal);
+		location.set_ValueOfColumn("Locode", locode);
+		location.setC_City_ID(c_City_ID);
+		location.setCity(city);
+		location.saveEx(get_TrxName());
+		
+		MBPartnerLocation bplocation = new MBPartnerLocation(bPartner);
+		bplocation.setName(city);
+		bplocation.setC_Location_ID(location.getC_Location_ID());
+		bplocation.setIsShipTo(true);
+		bplocation.setIsBillTo(true);
+		bplocation.setIsPayFrom(true);
+		bplocation.setIsRemitTo(true);
+		bplocation.saveEx(get_TrxName());
+	}
+	
 	private String getNameFromResponse(JsonObject jsonResponse) {
 		return getElement(jsonResponse, "name").getAsString();
+	}
+	
+	private String getAddressFromResponse(JsonObject jsonResponse) {
+		return getElement(jsonResponse, "address").getAsString();
 	}
 	
 	private String getErrorMessage(JsonObject jsonResponse) {
@@ -198,5 +249,10 @@ public class ViesVATValidator extends SvrProcess {
 		
 		
 		return errorMessage.toString(); 
+	}
+	
+	private int getC_City_ID(String city) {
+		String sql = "SELECT C_City_ID FROM C_City WHERE UPPER(name) = UPPER(?)";
+		return DB.getSQLValue(get_TrxName(), sql, city);
 	}
 }
