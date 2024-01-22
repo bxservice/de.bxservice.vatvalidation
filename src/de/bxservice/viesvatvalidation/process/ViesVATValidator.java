@@ -30,9 +30,12 @@ import javax.ws.rs.core.Response.Status;
 
 import org.adempiere.exceptions.AdempiereException;
 import org.compiere.model.MBPartner;
+import org.compiere.model.MClient;
 import org.compiere.model.MProcessPara;
 import org.compiere.process.ProcessInfoParameter;
 import org.compiere.process.SvrProcess;
+import org.compiere.util.Env;
+import org.compiere.util.Language;
 import org.compiere.util.Util;
 
 import com.google.gson.Gson;
@@ -128,11 +131,19 @@ public class ViesVATValidator extends SvrProcess {
 	 * @return Country code
 	 */
 	private String getCountryCode(String taxID) {
-		return taxID.substring(0, 2);
+		if(taxID.substring(0, 2).chars().allMatch(Character::isLetter)) {
+			return taxID.substring(0, 2);
+		}
+		MClient client = new MClient(Env.getCtx(), Env.getAD_Client_ID(Env.getCtx()), get_TrxName());
+		Language language = client.getLanguage();
+		return language.getLanguageCode();
 	}
 
 	private String getVATNumber(String taxID) {
-		return taxID.substring(2);
+		if(taxID.substring(0, 2).chars().allMatch(Character::isLetter)) {
+			return taxID.substring(2);
+		}
+		return taxID;
 	}
 
 	private JsonObject getResponseBody(String responseBody) {
