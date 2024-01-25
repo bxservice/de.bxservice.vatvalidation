@@ -55,7 +55,7 @@ public class ViesVATValidator extends SvrProcess {
 
 	private MBPartner bPartner;
 	private boolean isUpdateName = false;
-	private boolean isUpdateAddress = false;
+	private boolean isCreateNewAddress = false;
 
 	@Override
 	protected void prepare() {
@@ -64,8 +64,8 @@ public class ViesVATValidator extends SvrProcess {
 			switch (name) {
 			case "IsUpdateName":
 				isUpdateName = para.getParameterAsBoolean();
-			case "IsUpdateAddress":
-				isUpdateAddress = para.getParameterAsBoolean();
+			case "IsCreateNewAddress":
+				isCreateNewAddress = para.getParameterAsBoolean();
 			default:
 				MProcessPara.validateUnknownParameter(getProcessInfo().getAD_Process_ID(), para);
 			}
@@ -184,7 +184,7 @@ public class ViesVATValidator extends SvrProcess {
 	}
 	
 	private void validateResponseAddress(JsonObject jsonResponse) {
-		if(!isUpdateAddress) {
+		if(!isCreateNewAddress) {
 			return;
 		}
 		
