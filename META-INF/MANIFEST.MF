@@ -4,9 +4,9 @@ Bundle-Name: ViesVATValidation
 Bundle-SymbolicName: de.bxservice.viesvatvalidation;singleton:=true
 Bundle-Version: 1.0.0.qualifier
 Automatic-Module-Name: de.bxservice.viesvatvalidation
-Bundle-RequiredExecutionEnvironment: JavaSE-11
-Require-Bundle: org.adempiere.base;bundle-version="10.0.0",
- org.adempiere.plugin.utils;bundle-version="10.0.0",
+Bundle-RequiredExecutionEnvironment: JavaSE-17
+Require-Bundle: org.adempiere.base;bundle-version="11.0.0",
+ org.adempiere.plugin.utils;bundle-version="11.0.0",
  jakarta.ws.rs-api
 Bundle-Activator: org.adempiere.plugin.utils.Incremental2PackActivator
 Import-Package: com.google.gson,
