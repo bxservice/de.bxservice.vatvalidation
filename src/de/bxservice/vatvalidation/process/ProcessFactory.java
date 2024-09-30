@@ -19,48 +19,23 @@
  * Contributors:                                                       *
  * - Diego Ruiz - Bx Service GmbH                                      *
  **********************************************************************/
-package de.bxservice.viesvatvalidation.model;
+package de.bxservice.vatvalidation.process;
 
-import org.adempiere.base.event.AbstractEventHandler;
-import org.adempiere.base.event.IEventManager;
-import org.adempiere.base.event.IEventTopics;
-import org.compiere.model.MBPartner;
-import org.compiere.model.PO;
-import org.compiere.util.CLogger;
+import org.adempiere.base.IProcessFactory;
+import org.compiere.process.ProcessCall;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
-import org.osgi.service.component.annotations.ReferenceCardinality;
-import org.osgi.service.component.annotations.ReferencePolicy;
-import org.osgi.service.event.Event;
 
 @Component(
-		reference = @Reference( 
-				name = "IEventManager", bind = "bindEventManager", unbind="unbindEventManager", 
-				policy = ReferencePolicy.STATIC, cardinality =ReferenceCardinality.MANDATORY, service = IEventManager.class)
+		property= {"service.ranking:Integer=100"},
+		service = org.adempiere.base.IProcessFactory.class
 		)
-public class ViesVATEventHandler  extends AbstractEventHandler {
-
-	/** Logger */
-	private static CLogger log = CLogger.getCLogger(ViesVATEventHandler.class);
-	
-	@Override
-	protected void doHandleEvent(Event event) {
-		String type = event.getTopic();
-		PO po = getPO(event);
-
-		if (po instanceof MBPartner && type.equals(IEventTopics.PO_BEFORE_CHANGE)) {
-			MBPartner bp = (MBPartner) po;
-
-			if (BusinessPartnerUtils.didTaxIDChanged(bp)) {
-				log.warning("Tax ID changed for: " + bp.getValue() + ". Invalidating VAT number.");
-				BusinessPartnerUtils.setIsValidVATNumber(bp, false);
-			}
-		} 
-	}
+public class ProcessFactory implements IProcessFactory {
 
 	@Override
-	protected void initialize() {
-		registerTableEvent(IEventTopics.PO_BEFORE_CHANGE, MBPartner.Table_Name);
+	public ProcessCall newProcessInstance(String className) {
+		if (VATValidator.class.getName().equals(className))
+			return new VATValidator();
+		return null;
 	}
 
 }

@@ -19,23 +19,19 @@
  * Contributors:                                                       *
  * - Diego Ruiz - Bx Service GmbH                                      *
  **********************************************************************/
-package de.bxservice.viesvatvalidation.process;
+package de.bxservice.vatvalidation.model;
 
-import org.adempiere.base.IProcessFactory;
-import org.compiere.process.ProcessCall;
-import org.osgi.service.component.annotations.Component;
+import org.compiere.model.MBPartner;
 
-@Component(
-		property= {"service.ranking:Integer=100"},
-		service = org.adempiere.base.IProcessFactory.class
-		)
-public class ViesProcessFactory implements IProcessFactory {
+public class BusinessPartnerUtils {
 
-	@Override
-	public ProcessCall newProcessInstance(String className) {
-		if (ViesVATValidator.class.getName().equals(className))
-			return new ViesVATValidator();
-		return null;
+	private final static String IS_VALID_VAT_COLUMNNAME = "BXS_IsValidVATNumber";
+
+	public static void setIsValidVATNumber(MBPartner bPartner, boolean isValidVAT) {
+		bPartner.set_ValueOfColumn(IS_VALID_VAT_COLUMNNAME, isValidVAT);
 	}
-
+	
+	public static boolean didTaxIDChanged(MBPartner bPartner) {
+		return bPartner.is_ValueChanged(MBPartner.COLUMNNAME_TaxID);
+	}
 }

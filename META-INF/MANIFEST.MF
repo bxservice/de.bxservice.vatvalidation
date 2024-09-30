@@ -1,9 +1,9 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: ViesVATValidation
-Bundle-SymbolicName: de.bxservice.viesvatvalidation;singleton:=true
-Bundle-Version: 1.0.0.qualifier
-Automatic-Module-Name: de.bxservice.viesvatvalidation
+Bundle-Name: VATValidation
+Bundle-SymbolicName: de.bxservice.vatvalidation;singleton:=true
+Bundle-Version: 1.0.1.qualifier
+Automatic-Module-Name: de.bxservice.vatvalidation
 Bundle-RequiredExecutionEnvironment: JavaSE-17
 Require-Bundle: org.adempiere.base;bundle-version="11.0.0",
  org.adempiere.plugin.utils;bundle-version="11.0.0",
@@ -12,6 +12,5 @@ Bundle-Activator: org.adempiere.plugin.utils.Incremental2PackActivator
 Import-Package: com.google.gson,
  org.osgi.service.component.annotations;version="1.3.0",
  org.osgi.service.event;version="1.4.0"
-Service-Component: OSGI-INF/de.bxservice.viesvatvalidation.model.ViesVATEventHandler.xml,
- OSGI-INF/de.bxservice.viesvatvalidation.process.ViesProcessFactory.xml
+Service-Component: OSGI-INF/*.xml
 Bundle-ActivationPolicy: lazy

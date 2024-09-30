@@ -19,19 +19,48 @@
  * Contributors:                                                       *
  * - Diego Ruiz - Bx Service GmbH                                      *
  **********************************************************************/
-package de.bxservice.viesvatvalidation.model;
+package de.bxservice.vatvalidation.model;
 
+import org.adempiere.base.event.AbstractEventHandler;
+import org.adempiere.base.event.IEventManager;
+import org.adempiere.base.event.IEventTopics;
 import org.compiere.model.MBPartner;
+import org.compiere.model.PO;
+import org.compiere.util.CLogger;
+import org.osgi.service.component.annotations.Component;
+import org.osgi.service.component.annotations.Reference;
+import org.osgi.service.component.annotations.ReferenceCardinality;
+import org.osgi.service.component.annotations.ReferencePolicy;
+import org.osgi.service.event.Event;
 
-public class BusinessPartnerUtils {
+@Component(
+		reference = @Reference( 
+				name = "IEventManager", bind = "bindEventManager", unbind="unbindEventManager", 
+				policy = ReferencePolicy.STATIC, cardinality =ReferenceCardinality.MANDATORY, service = IEventManager.class)
+		)
+public class VATEventHandler  extends AbstractEventHandler {
 
-	private final static String IS_VALID_VAT_COLUMNNAME = "BXS_IsValidVATNumber";
-
-	public static void setIsValidVATNumber(MBPartner bPartner, boolean isValidVAT) {
-		bPartner.set_ValueOfColumn(IS_VALID_VAT_COLUMNNAME, isValidVAT);
-	}
+	/** Logger */
+	private static CLogger log = CLogger.getCLogger(VATEventHandler.class);
 	
-	public static boolean didTaxIDChanged(MBPartner bPartner) {
-		return bPartner.is_ValueChanged(MBPartner.COLUMNNAME_TaxID);
+	@Override
+	protected void doHandleEvent(Event event) {
+		String type = event.getTopic();
+		PO po = getPO(event);
+
+		if (po instanceof MBPartner && type.equals(IEventTopics.PO_BEFORE_CHANGE)) {
+			MBPartner bp = (MBPartner) po;
+
+			if (BusinessPartnerUtils.didTaxIDChanged(bp)) {
+				log.warning("Tax ID changed for: " + bp.getValue() + ". Invalidating VAT number.");
+				BusinessPartnerUtils.setIsValidVATNumber(bp, false);
+			}
+		} 
 	}
+
+	@Override
+	protected void initialize() {
+		registerTableEvent(IEventTopics.PO_BEFORE_CHANGE, MBPartner.Table_Name);
+	}
+
 }
